@@ -1,9 +1,14 @@
 #!/usr/bin/python
 
+#TODO: logging
+#TODO: exceptioning
+#TODO: parse time
+
 import subprocess
 import re
 import sys
 import getopt
+import ast
 import ConfigParser
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 
@@ -12,9 +17,16 @@ pattern = None
 log_monitor_command_pref = ''
 zabbix_trap_cmd_pref = ''
 zabbix_trapcmd_pattern = '{0} -z {1} -s "{2}" -p {3}'
-zabbixKeyLogFieldMap = None
+zabbixKeyLogFieldMapping = {}
 
 cmdGen = cmdgen.CommandGenerator()
+            
+
+def runProc(process_command, mode, processLineFunction):
+    print 'starting process : '+process_command
+    for line in runProcess(process_command.split()):
+        print line
+        processLineFunction(line)
 
 def runProcess(exe):    
     p = subprocess.Popen(exe, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -26,22 +38,29 @@ def runProcess(exe):
             break
 
 def processLine(line):
+    print log_parse_pattern
     matcher = pattern.match(line)
     processObject(matcher)
 
 def processObject(matcher):
     
     if matcher != None:
-        for key in zabbixKeyLogFieldMap.keys():
-            value = matcher.group(zabbixKeyLogFieldMap[key])
-            trapZabbix(key, value)
-            
+        if matcher.group('index') in zabbixKeyLogFieldMapping:
+            map = zabbixKeyLogFieldMapping[matcher.group('index')]
+            for key in map:
+                value = matcher.group(key)
+                if value != None:
+                    trapZabbix(map[key], value) 
 
+def emptyFunction(line):
+    pass
 
-def runProc(process_command, mode):
-    for line in runProcess(process_command.split()):
-        print line
-        processLine(line)
+def trapZabbix(key, value):
+    zabbix_trap_cmd = zabbix_trap_cmd_pref + ' -k {0} -o {1} -vv'.format(key, value)
+
+    print(zabbix_trap_cmd)
+
+    runProc(zabbix_trap_cmd, None, emptyFunction)
 
 def main(argv):
     querylog_path = ''
@@ -66,10 +85,8 @@ def main(argv):
     print 'CONF_FILE   :', zabbix_config_path
 
     parseConfig(zabbix_config_path)
-
-    processLine("/* Sat May 10 08:40:00.160 2014 conn 9861 real 0.000 wall 0.000 found 0 */ SELECT id FROM print_form_doc;")
       
-    #runProc(log_monitor_command_pref + ' ' + querylog_path, None)
+    runProc(log_monitor_command_pref.format(querylog_path), None, processLine)
 
 def printUsage():
     print 'usage: monitor_query_log_zabbix_trap.py -l <querylog_path> -c <zabbix_config_path>'
@@ -92,7 +109,13 @@ def parseConfig(zabbix_config_path):
 
     log_monitor_command_pref = zabbix_config.get("LogMonitor", "log_monitor_command_pref")
 
-    zabbixKeyLogFieldMap = getSectionMap( zabbix_config, "ZabbixKeyLogFieldMapping")
+    indexKeyLogMap = getSectionMap( zabbix_config, "ZabbixKeyLogFieldMapping")
+
+    for key in indexKeyLogMap.keys():
+        value = indexKeyLogMap[key]
+        map = ast.literal_eval(value)
+        zabbixKeyLogFieldMapping[key] = map
+    
 
 def getSectionMap(config, section):
     dict = {}
@@ -106,14 +129,6 @@ def getSectionMap(config, section):
             print("exception on %s!" % option)
             dict[option] = None
     return dict
-
-def trapZabbix(key, value):
-    zabbix_trap_cmd = zabbix_trap_cmd_pref + ' -k {0} -o {1}'.format(key, value)
-
-    print(zabbix_trap_cmd)
-
-    runProcess(zabbix_trap_cmd)
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])
