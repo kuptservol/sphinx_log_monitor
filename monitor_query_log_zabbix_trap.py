@@ -9,7 +9,6 @@ import getopt
 import ast
 import ConfigParser
 import logging
-from datetime import datetime
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 
 logging.basicConfig(filename='query_zabbix.log',level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,7 +18,6 @@ log_monitor_command_pref = ''
 zabbix_trap_cmd_pref = ''
 zabbix_trapcmd_pattern = '{0} -z {1} -s "{2}" -p {3}'
 zabbixKeyLogFieldMapping = {}
-log_time_pattern = ''
 
 cmdGen = cmdgen.CommandGenerator()
             
@@ -43,29 +41,20 @@ def processLine(line):
     matcher = pattern.match(line)
     processObject(matcher)
 
-def getTime(matcher):
-    time = None
-    try:
-        time = datetime.strptime(matcher.group('time'), log_time_pattern)    
-    except e:
-        logging.error(e)
-        time = datetime.datetime.now()
-    return time
 def processObject(matcher):
     
     if matcher != None:
         if matcher.group('index') in zabbixKeyLogFieldMapping:
             map = zabbixKeyLogFieldMapping[matcher.group('index')]
-            time = getTime(matcher)
             for key in map:
                 value = matcher.group(key)
                 if value != None:
-                    trapZabbix(map[key], value, time) 
+                    trapZabbix(map[key], value) 
 
 def emptyFunction(line):
     pass
 
-def trapZabbix(key, value, time):
+def trapZabbix(key, value):
     zabbix_trap_cmd = zabbix_trap_cmd_pref + ' -k {0} -o {1} -vv --real-time'.format(key, value)
 
     runProc(zabbix_trap_cmd, None, emptyFunction)
