@@ -2,20 +2,19 @@
 
 __author__ = "skuptsov"
 
-# TODO: make comfortable stop
-
 import subprocess
 import re
 import sys
 import getopt
 import ast
-import signal
+from signal import *
 import ConfigParser
 import logging
 import datetime
 from threading import Thread
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 
+procList = []
 log_parse_pattern = ''
 pattern = None
 log_monitor_command_pref = ''
@@ -72,15 +71,17 @@ def processObjectTimeAggregation(index, keyValueMap):
  
 
 
-def runProc(process_command, mode, processLineFunction):
+def runProc(process_command, mode, processLineFunction, saveProc):
     logging.debug('starting process : '+process_command)
-    for line in runProcess(process_command.split()):
+    for line in runProcess(process_command.split(), saveProc):
         logging.debug(line)
-        print(line)
         processLineFunction(line)
 
-def runProcess(exe):    
+def runProcess(exe, saveProc):    
     p = subprocess.Popen(exe, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if saveProc == True:
+        procList.append(p)    
+    
     while(True):
         retcode = p.poll() 
         line = p.stdout.readline()
@@ -117,7 +118,7 @@ def trapZabbix(key, value):
     
     zabbix_trap_cmd = zabbix_trap_cmd_pref + ' -k {0} -o {1} -vv --real-time'.format(key, value)
 
-    runProc(zabbix_trap_cmd, None, emptyFunction)
+    runProc(zabbix_trap_cmd, None, emptyFunction, False)
 
 def main(argv):
     querylog_path = ''
@@ -146,7 +147,7 @@ def main(argv):
 
     print('starting monitoring process...')
       
-    runProc(log_monitor_command_pref.format(querylog_path), None, processLine)
+    runProc(log_monitor_command_pref.format(querylog_path), None, processLine, True)
 
 
 def printUsage():
@@ -191,8 +192,15 @@ def getSectionMap(config, section):
             dict[option] = None
     return dict
 
-if __name__ == "__main__":
-    main(sys.argv[1:])
-   
+def clean(*args):
+    for proc in procList:
+        try :
+            proc.kill()
+        except:
+            logging.error("Error while killing subprocess " + proc)
+    sys.exit(0)
 
-    
+if __name__ == "__main__":
+    for sig in (SIGABRT, SIGILL, SIGINT, SIGSEGV, SIGTERM):
+        signal(sig, clean)
+    main(sys.argv[1:])
