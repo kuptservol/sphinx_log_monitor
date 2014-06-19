@@ -19,10 +19,14 @@ Installing
 chmod +x startSphinxLogMonitor.sh
 chmod +x stopSphinxLogMonitor.sh
 
-4.) start  ./startSphinxLogMonitor.sh
+4.) to start:  ./startSphinxLogMonitor.sh
+
 Usage:
 ./startSphinxLogMonitor.sh <querylog_path> <zabbix_config_path> <sh_log>
 
 <querylog_path> - path to query.log
 <zabbix_config_path> - path to zabbix_conf.ini
+
+to stop:  ./stopSphinxLogMonitor.sh
+
 
