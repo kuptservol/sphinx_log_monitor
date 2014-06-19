@@ -4,28 +4,26 @@ __author__ = "skuptsov"
 
 import subprocess
 import re
+import os
 import sys
 import getopt
-import ast
 from signal import *
 import ConfigParser
 import logging
 import datetime
 from threading import Thread
-from pysnmp.entity.rfc3413.oneliner import cmdgen
 
 procList = []
 log_parse_pattern = ''
 pattern = None
 log_monitor_command_pref = ''
 zabbix_trap_cmd_pref = ''
-zabbix_trapcmd_pattern = '{0} -z {1} -s "{2}" -p {3}'
+zabbix_trapcmd_pattern = '%s -z %s -s "%s" -p %s'
 zabbixKeyLogFieldMapping = {}
 currentTimeAggregationSlot = None
 timeAggregationPeriodSec = 0
 
 
-cmdGen = cmdgen.CommandGenerator()
 logging.basicConfig(filename='query_zabbix.log',level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
             
 class TimeAggreationSlot:
@@ -116,7 +114,7 @@ def emptyFunction(line):
 
 def trapZabbix(key, value):
     
-    zabbix_trap_cmd = zabbix_trap_cmd_pref + ' -k {0} -o {1} -vv --real-time'.format(key, value)
+    zabbix_trap_cmd = zabbix_trap_cmd_pref + ' -k %s -o %s -vv --real-time' % (key, value)
 
     runProc(zabbix_trap_cmd, None, emptyFunction, False)
 
@@ -147,7 +145,7 @@ def main(argv):
 
     print('starting monitoring process...')
       
-    runProc(log_monitor_command_pref.format(querylog_path), None, processLine, True)
+    runProc(log_monitor_command_pref % (querylog_path), None, processLine, True)
 
 
 def printUsage():
@@ -165,7 +163,7 @@ def parseConfig(zabbix_config_path):
 
     global zabbix_trap_cmd_pref, log_parse_pattern, log_monitor_command_pref, zabbixKeyLogFieldMapping, pattern, timeAggregationPeriodSec
 
-    zabbix_trap_cmd_pref = zabbix_trapcmd_pattern.format(zabbix_sender_path,zabbix_server_host,source_host_name,zabbix_trap_port)
+    zabbix_trap_cmd_pref = zabbix_trapcmd_pattern % (zabbix_sender_path,zabbix_server_host,source_host_name,zabbix_trap_port)
     log_parse_pattern = zabbix_config.get("LogMonitor", "log_parse_pattern")
     timeAggregationPeriodSec = float(zabbix_config.get("LogMonitor", "time_aggregation_period_sec"))
     pattern = re.compile(log_parse_pattern)
@@ -175,7 +173,7 @@ def parseConfig(zabbix_config_path):
 
     for key in indexKeyLogMap.keys():
         value = indexKeyLogMap[key]
-        map = ast.literal_eval(value)
+        map = eval(value)
         zabbixKeyLogFieldMapping[key] = map
     
 
@@ -193,11 +191,13 @@ def getSectionMap(config, section):
     return dict
 
 def clean(*args):
+    print('stopping monitoring process...')
     for proc in procList:
         try :
-            proc.kill()
-        except:
-            logging.error("Error while killing subprocess " + proc)
+            os.kill(proc.pid, SIGTERM)
+        except Exception, e :
+            logging.error("Error while killing subprocess : ")
+            logging.error(str(e))
     sys.exit(0)
 
 if __name__ == "__main__":
