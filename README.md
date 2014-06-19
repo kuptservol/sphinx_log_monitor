@@ -6,10 +6,12 @@ Make a simple daemon to monitor sphinx query params through Zabbix
 Installing
 
 1.) Install zabbix-agent
-tar -xzvf zabbix-1.6.2.tar.gz
-cd zabbix-1.6.2
-./configure --enable-agent --prefix=/usr/local/zabbix
-make install
+
+ tar -xzvf zabbix-1.6.2.tar.gz
+ cd zabbix-1.6.2
+ ./configure --enable-agent --prefix=/usr/local/zabbix
+ make install
+
 
 2.) Download files from repository
 
